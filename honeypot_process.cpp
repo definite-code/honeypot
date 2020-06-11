@@ -117,7 +117,7 @@ int process_connection (int con_num, int port_num, int socketFD)
 
 static void* worker (void* arg)
 {
-	myfile.open("log.txt");
+	myfile.open("log.txt",std::ios::out | std::ios::app);
     char chr;
     int retval;
     FILE* writeFD;
@@ -164,6 +164,7 @@ static void* worker (void* arg)
     fflush (writeFD);
     timestamp (stdout, parg->con_num, 0);
     printf ("open connection %s -> ", inet_ntoa (parg->addr.sin_addr));
+    myfile<<inet_ntoa (parg->addr.sin_addr)<<endl;
     printf ("%s:%d\n",
 	inet_ntoa (local_sa.sin_addr), parg->port_num);
     fflush (stdout);
@@ -728,7 +729,7 @@ static void* worker (void* arg)
     if (retval == -1)
 	perror ("close connection");
     else
-	fprintf (stderr, "close connection: end of file\n");
+	fprintf (stderr, "close connection\n");
     fflush (stderr);
     pthread_mutex_unlock (&print_mutex);
     printing = 0;
