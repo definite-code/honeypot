@@ -15,6 +15,8 @@
 #define MY_MAX 10 
 using namespace std;
 
+int dir_flag=0;
+
 struct folder{
 	// struct folder* current_directory[];
 	struct folder* previous_node=NULL;
@@ -54,133 +56,11 @@ static int timed_read (int d, void* buf, size_t nbyte, unsigned int seconds);
 
 static pthread_mutex_t print_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-int process_connection (int con_num, int port_num, int socketFD)
+struct folder* parent_head=NULL;
+struct folder * temp_folder=NULL;
+
+void create_directory()
 {
-    int optval;
-    int connectFD;
-    pthread_t thread_handle;
-    struct sockaddr_in addr;
-    socklen_t addrlen = (socklen_t)sizeof(addr);
-    struct Arg* parg;
-
-    optval = 1;
-    if (setsockopt (
-	socketFD, SOL_SOCKET, SO_KEEPALIVE, &optval, sizeof(optval))
-	< 0)
-    {
-	perror("cannot set keepalive");
-	exit (EXIT_FAILURE);
-    }
-
-    if ((parg = (struct Arg*)malloc (sizeof (struct Arg))) == NULL)
-    {
-	timestamp (stderr, parg->con_num, 0);
-        perror ("malloc failed");
-	return 1;
-    }
-
-    connectFD = accept (socketFD, (struct sockaddr*)(&addr), &addrlen);
-    if (0 > connectFD)
-    {
-	timestamp (stderr, parg->con_num, 0);
-	perror ("accept failed");
-	free ((void*)parg);
-	if (errno == EMFILE) return 1;
-	return 0;
-    }
-
-    parg->con_num = con_num;
-    parg->port_num = port_num;
-    parg->socketFD = socketFD;
-    parg->connectFD = connectFD;
-    parg->addr = addr;
-
-    /* Keep con_num in order on stdout */
-    my_sleep();
-
-    if (pthread_create (&thread_handle, NULL, worker, (void*)parg) != 0)
-    {
-	timestamp (stderr, parg->con_num, 0);
-        perror ("pthread_create failed");
-	free ((void*)parg);
-	return 1;
-    }
-    if (pthread_detach (thread_handle) != 0)
-    {
-        perror ("pthread_detach failed");
-	free ((void*)parg);
-	return 1;
-    }
-
-    return 0;
-}
-
-static void* worker (void* arg)
-{
-	myfile.open("log.txt",std::ios::out | std::ios::app);
-    char chr;
-    int retval;
-    FILE* writeFD;
-    struct sockaddr_in local_sa;
-    socklen_t local_length = (socklen_t)sizeof (local_sa);
-    struct Arg* parg = (struct Arg*)arg;
-    int printing = 0;    /* 2 if a \n, time stamp, and char(s) have been sent,
-                          * 1 if a \n, time stamp have been sent,
-			  * 0 if a \n has been sent.
-			  * NO OTHER CONDITIONS ALLOWED.
-			  */
-    int iline = 0;
-    int finished;
-
-    /* Lock mutex early to keep connection numbers (con_num) in order. */
-    pthread_mutex_lock (&print_mutex);
-
-    if (getsockname (
-	parg->connectFD, (struct sockaddr*)(&local_sa), &local_length) == -1)
-    {
-	timestamp (stderr, parg->con_num, 0);
-	perror ("getsockname failed");
-	close (parg->connectFD);
-	free ((void*)parg);
-	pthread_mutex_unlock (&print_mutex);
-	pthread_exit (NULL);
-    }
-
-    if ((writeFD = fdopen (parg->connectFD, "w")) == NULL)
-    {
-	timestamp (stderr, parg->con_num, 0);
-        perror ("fdopen failed");
-	close (parg->connectFD);
-	free ((void*)parg);
-	pthread_mutex_unlock (&print_mutex);
-	pthread_exit (NULL);
-    }
-
-    fprintf(writeFD, "BCM96328 Broadband Router");
-    fprintf (writeFD, "\nLogin: ");
-
-    myfile<<"Login:  ";
-
-    fflush (writeFD);
-    timestamp (stdout, parg->con_num, 0);
-    printf ("open connection %s -> ", inet_ntoa (parg->addr.sin_addr));
-    myfile<<inet_ntoa (parg->addr.sin_addr)<<endl;
-    printf ("%s:%d\n",
-	inet_ntoa (local_sa.sin_addr), parg->port_num);
-    fflush (stdout);
-    pthread_mutex_unlock (&print_mutex);
-    printing = 0;
-    finished = 0;
-
-
-
-    for(auto x: m)
-    	cout<<x.first<<x.second<<endl;
-
-    
-
-
-
 
     string sysinfo_string="Number of processes: 64";
 	sysinfo_string+="\n";
@@ -201,7 +81,7 @@ static void* worker (void* arg)
 
     vector<string>v={"bin","dev","etc","lib","linuxrc","mnt","proc","sbin","usr","var","webs"};
 	struct folder* top=NULL;
-	struct folder* parent_head=NULL;
+	
 	for(int i=0;i<v.size();i++)
 	{
 		struct folder* n=NULL;
@@ -216,7 +96,7 @@ static void* worker (void* arg)
 		n->name=v[i];
 		top=n;
 	}
-	struct folder * temp_folder=parent_head;
+	temp_folder=parent_head;
 	while(temp_folder->name!="var")
 		temp_folder=temp_folder->bottom;
 	// v={"bcmupnp.pid","group","hosts","hwaddr","mcpd.conf","nvram","passwd",
@@ -242,7 +122,7 @@ static void* worker (void* arg)
 	head->previous_node=temp_folder;
 	
 
-	cout<<"head name: "<<head->name<<endl;
+	// cout<<"head name: "<<head->name<<endl;
 	struct folder *n=NULL;
 	n=(struct folder *)malloc(sizeof(struct folder));
 	head->next_node=n;
@@ -471,6 +351,140 @@ static void* worker (void* arg)
 
 
 
+}
+
+
+int process_connection (int con_num, int port_num, int socketFD)
+{
+	cout<<"reached in process_connection";
+	cout<<"creating directory";
+	if(dir_flag==0){create_directory();dir_flag=1;}
+    int optval;
+    int connectFD;
+    pthread_t thread_handle;
+    struct sockaddr_in addr;
+    socklen_t addrlen = (socklen_t)sizeof(addr);
+    struct Arg* parg;
+
+    optval = 1;
+    if (setsockopt (
+	socketFD, SOL_SOCKET, SO_KEEPALIVE, &optval, sizeof(optval))
+	< 0)
+    {
+	perror("cannot set keepalive");
+	exit (EXIT_FAILURE);
+    }
+
+    if ((parg = (struct Arg*)malloc (sizeof (struct Arg))) == NULL)
+    {
+	timestamp (stderr, parg->con_num, 0);
+        perror ("malloc failed");
+	return 1;
+    }
+
+    connectFD = accept (socketFD, (struct sockaddr*)(&addr), &addrlen);
+    if (0 > connectFD)
+    {
+	timestamp (stderr, parg->con_num, 0);
+	perror ("accept failed");
+	free ((void*)parg);
+	if (errno == EMFILE) return 1;
+	return 0;
+    }
+
+    parg->con_num = con_num;
+    parg->port_num = port_num;
+    parg->socketFD = socketFD;
+    parg->connectFD = connectFD;
+    parg->addr = addr;
+
+    /* Keep con_num in order on stdout */
+    my_sleep();
+
+    if (pthread_create (&thread_handle, NULL, worker, (void*)parg) != 0)
+    {
+	timestamp (stderr, parg->con_num, 0);
+        perror ("pthread_create failed");
+	free ((void*)parg);
+	return 1;
+    }
+    if (pthread_detach (thread_handle) != 0)
+    {
+        perror ("pthread_detach failed");
+	free ((void*)parg);
+	return 1;
+    }
+
+    return 0;
+}
+
+static void* worker (void* arg)
+{
+	myfile.open("log.txt",std::ios::out | std::ios::app);
+    char chr;
+    int retval;
+    FILE* writeFD;
+    struct sockaddr_in local_sa;
+    socklen_t local_length = (socklen_t)sizeof (local_sa);
+    struct Arg* parg = (struct Arg*)arg;
+    int printing = 0;    /* 2 if a \n, time stamp, and char(s) have been sent,
+                          * 1 if a \n, time stamp have been sent,
+			  * 0 if a \n has been sent.
+			  * NO OTHER CONDITIONS ALLOWED.
+			  */
+    int iline = 0;
+    int finished;
+
+    /* Lock mutex early to keep connection numbers (con_num) in order. */
+    pthread_mutex_lock (&print_mutex);
+
+    if (getsockname (
+	parg->connectFD, (struct sockaddr*)(&local_sa), &local_length) == -1)
+    {
+	timestamp (stderr, parg->con_num, 0);
+	perror ("getsockname failed");
+	close (parg->connectFD);
+	free ((void*)parg);
+	pthread_mutex_unlock (&print_mutex);
+	pthread_exit (NULL);
+    }
+
+    if ((writeFD = fdopen (parg->connectFD, "w")) == NULL)
+    {
+	timestamp (stderr, parg->con_num, 0);
+        perror ("fdopen failed");
+	close (parg->connectFD);
+	free ((void*)parg);
+	pthread_mutex_unlock (&print_mutex);
+	pthread_exit (NULL);
+    }
+
+    fprintf(writeFD, "BCM96328 Broadband Router");
+    fprintf (writeFD, "\nLogin: ");
+
+    myfile<<"Login:  ";
+
+    fflush (writeFD);
+    timestamp (stdout, parg->con_num, 0);
+    printf ("open connection %s -> ", inet_ntoa (parg->addr.sin_addr));
+    myfile<<inet_ntoa (parg->addr.sin_addr)<<endl;
+    printf ("%s:%d\n",
+	inet_ntoa (local_sa.sin_addr), parg->port_num);
+    fflush (stdout);
+    pthread_mutex_unlock (&print_mutex);
+    printing = 0;
+    finished = 0;
+
+
+
+    // for(auto x: m)
+    // 	cout<<x.first<<x.second<<endl;
+
+    
+
+    cout<<" reached below open connection"<<endl;
+
+
 
 
 	temp_folder=parent_head;
@@ -555,6 +569,11 @@ static void* worker (void* arg)
 			myfile<<temp<<endl;
 			if(iline>1)
 			{
+				if(temp=="exit")
+				{
+					finished = 1;
+			   		break;
+				}
 				if(m.find(temp)!=m.end())
 				{
 					if(temp=="echo *")
@@ -614,7 +633,7 @@ static void* worker (void* arg)
 						else if(flag==0 || go->next_node==NULL)
 						{
 							string t="bash: cd: "+folder+": No such file or directory\n";
-							cout<<"folder not found"<<endl;
+							// cout<<"folder not found"<<endl;
 							for(int i=0;i<t.length();i++)
 							{
 								char a=t[i];
@@ -729,7 +748,7 @@ static void* worker (void* arg)
     if (retval == -1)
 	perror ("close connection");
     else
-	fprintf (stderr, "close connection\n");
+	fprintf (stderr, "close connection: end of file\n");
     fflush (stderr);
     pthread_mutex_unlock (&print_mutex);
     printing = 0;
